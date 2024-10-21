@@ -1,1 +1,6 @@
 /output/
+/config/__pycache__/
+/data_ingestion/__pycache__/
+/nlp_analysis/__pycache__/
+/text_processing/__pycache__/
+/utils/__pycache__/

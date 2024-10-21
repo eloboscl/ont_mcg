@@ -2,13 +2,16 @@ import datetime
 import json
 import logging
 import logging.config
+import multiprocessing
 import os
 
 import nltk
 import numpy as np
+import torch
 
 from config import settings
-from config.settings import METADATA_FILE, PDF_DIR
+from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
+                             METADATA_FILE, PDF_DIR)
 from src.data_ingestion import metadata_integrator, pdf_processor
 from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
@@ -90,7 +93,7 @@ def main():
     logger.info(f"Failed to process {len(failed_files)} PDFs")
     
     # Clean extracted texts
-    cleaner_instance = cleaner.TextCleaner()
+    cleaner_instance = cleaner.TextCleaner(custom_stopwords=CUSTOM_STOP_WORDS)
     cleaned_texts = cleaner_instance.process_documents(extracted_texts)
     cleaned_texts_file = os.path.join(run_folder, "cleaned_texts.json")
     with open(cleaned_texts_file, 'w', encoding='utf-8') as f:
