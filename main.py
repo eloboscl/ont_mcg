@@ -4,8 +4,8 @@ from config import settings
 import os
 import datetime
 import logging
-from src.data_ingestion import pdf_processor
-
+from src.data_ingestion import pdf_processor, metadata_integrator
+from src.text_processing import cleaner
 
 
 def setup_run_folder():
