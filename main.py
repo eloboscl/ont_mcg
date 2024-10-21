@@ -13,10 +13,10 @@ from config import settings
 from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
                              METADATA_FILE, PDF_DIR)
 from src.data_ingestion import metadata_integrator, pdf_processor
+from src.network_analysis import network_analyzer
 from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
 from src.topic_modeling import topic_modeler
-from src.network_analysis import network_analyzer
 from src.trend_analysis import trend_analyzer
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,50 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 def log_summary_statistics(analyzed_documents, lda_model, author_network, trend_results):
+    logger.info("Logging summary statistics...")
+
+    # Document statistics
+    total_docs = len(analyzed_documents)
+    avg_length = np.mean([len(doc['cleaned_text'].split()) for doc in analyzed_documents.values()])
+    logger.info(f"Total documents analyzed: {total_docs}")
+    logger.info(f"Average document length: {avg_length:.2f} words")
+
+    # Entity statistics
+    all_entities = [entity for doc in analyzed_documents.values() for entity in doc['nlp_analysis']['entities']]
+    entity_counts = Counter(all_entities)
+    top_entities = entity_counts.most_common(10)
+    logger.info(f"Top 10 named entities: {top_entities}")
+
+    # Sentiment statistics
+    sentiments = [doc['nlp_analysis']['sentiment'] for doc in analyzed_documents.values()]
+    avg_sentiment = np.mean(sentiments)
+    logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
+
+    # Topic modeling statistics
+    logger.info("Top topics:")
+    for idx, topic in lda_model.print_topics(-1):
+        logger.info(f"Topic {idx}: {topic}")
+
+    # Network analysis statistics
+    logger.info(f"Author collaboration network statistics:")
+    logger.info(f"  Number of authors: {author_network.number_of_nodes()}")
+    logger.info(f"  Number of collaborations: {author_network.number_of_edges()}")
+    degree_centrality = nx.degree_centrality(author_network)
+    top_authors = sorted(degree_centrality, key=degree_centrality.get, reverse=True)[:5]
+    logger.info(f"  Top 5 authors by degree centrality: {top_authors}")
+
+    # Trend analysis statistics
+    logger.info("Trend analysis summary:")
+    for term, trend in trend_results['term_trends'].items():
+        start_freq = trend[0]['relative_frequency']
+        end_freq = trend[-1]['relative_frequency']
+        change = (end_freq - start_freq) / start_freq * 100
+        logger.info(f"  {term}: {change:.2f}% change from {trend[0]['year']} to {trend[-1]['year']}")
+
+    # Forecast summary
+    logger.info("Trend forecasts for the next 5 years:")
+    for term, forecast in trend_results['forecasts'].items():
+        logger.info(f"  {term}: {forecast['forecast_next_5_years']}")
 
 
 def main():
