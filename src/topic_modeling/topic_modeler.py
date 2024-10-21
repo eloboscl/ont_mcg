@@ -31,7 +31,3 @@ def perform_topic_modeling(texts, num_topics=10, workers=None):
     coherence_lda = coherence_model_lda.get_coherence()
     
     return lda_model, coherence_lda
-
-# Usage
-texts = [doc.split() for doc in your_processed_documents]
-lda_model, coherence = perform_topic_modeling(texts)

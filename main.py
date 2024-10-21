@@ -15,6 +15,9 @@ from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
 from src.data_ingestion import metadata_integrator, pdf_processor
 from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
+from src.topic_modeling import topic_modeler
+from src.network_analysis import network_analyzer
+from src.trend_analysis import trend_analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,9 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NumpyEncoder, self).default(obj)
 
+def log_summary_statistics(analyzed_documents, lda_model, author_network, trend_results):
+
+
 def main():
     # Set up logging
     logging.config.dictConfig(settings.LOGGING_CONFIG)
@@ -85,6 +91,10 @@ def main():
     
     # Ensure NLTK data is downloaded
     download_nltk_data()
+
+    # Set up device for GPU acceleration
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
     
     # Process PDFs
     extracted_texts, relevance_scores, mc_terms_found, failed_files = pdf_processor.process_pdfs_in_batches(run_folder)
@@ -115,7 +125,7 @@ def main():
 
      # Perform advanced NLP analysis
     logger.info("Starting advanced NLP analysis...")
-    analyzed_documents = advanced_nlp.process_documents(integrated_documents)
+    analyzed_documents = advanced_nlp.process_documents(integrated_documents, device=device)
     analyzed_file = os.path.join(run_folder, "analyzed_documents.json")
     with open(analyzed_file, 'w', encoding='utf-8') as f:
         json.dump(analyzed_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
@@ -130,6 +140,40 @@ def main():
     logger.info(f"Total entities found: {total_entities}")
     logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
     logger.info(f"Top 10 key phrases across all documents: {', '.join(top_key_phrases)}")
+
+
+    # Perform topic modeling
+    logger.info("Starting topic modeling...")
+    lda_model, coherence = topic_modeler.perform_topic_modeling(
+        [doc['cleaned_text'] for doc in analyzed_documents.values()],
+        num_topics=10,
+        workers=multiprocessing.cpu_count() - 1
+    )
+    topic_file = os.path.join(run_folder, "topic_model_results.json")
+    with open(topic_file, 'w', encoding='utf-8') as f:
+        json.dump({
+            "topics": lda_model.print_topics(),
+            "coherence": coherence
+        }, f, ensure_ascii=False, indent=4)
+    logger.info(f"Topic modeling completed. Results saved to: {topic_file}")
+
+    # Perform network analysis
+    logger.info("Starting network analysis...")
+    author_network = network_analyzer.create_author_collaboration_network(analyzed_documents)
+    network_file = os.path.join(run_folder, "author_network.graphml")
+    network_analyzer.save_network(author_network, network_file)
+    logger.info(f"Network analysis completed. Results saved to: {network_file}")
+
+    # Perform trend analysis
+    logger.info("Starting trend analysis...")
+    trend_results = trend_analyzer.analyze_trends(analyzed_documents, MANAGEMENT_CONTROL_TERMS)
+    trend_file = os.path.join(run_folder, "trend_analysis_results.json")
+    with open(trend_file, 'w', encoding='utf-8') as f:
+        json.dump(trend_results, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
+    logger.info(f"Trend analysis completed. Results saved to: {trend_file}")
+
+    # Log summary statistics
+    log_summary_statistics(analyzed_documents, lda_model, author_network, trend_results)
 
     logger.info("Run completed")
 
