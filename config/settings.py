@@ -7,7 +7,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Input and output directories
 INPUT_DIR = os.path.join(ROOT_DIR, 'input')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
-PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP/'
+PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP2/'
 METADATA_FILE = os.path.join(INPUT_DIR, '20240717_metadata_corpus.xlsx')
 
 # Resource usage settings
