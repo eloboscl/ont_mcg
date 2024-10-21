@@ -19,6 +19,7 @@ dependencies = [
     "matplotlib",
     "pynvml",
     "psutil",
+    "fitz",
 ]
 
 [build-system]
