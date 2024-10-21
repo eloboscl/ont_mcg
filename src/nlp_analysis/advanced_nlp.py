@@ -40,7 +40,7 @@ def analyze_document(doc: Dict[str, any]) -> Dict[str, any]:
     key_phrases = extract_key_phrases(content)
     
     entity_counts = {}
-    for _, label, _ in entities:
+    for _, label in entities:
         entity_counts[label] = entity_counts.get(label, 0) + 1
     
     return {
