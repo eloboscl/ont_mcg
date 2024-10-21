@@ -3,7 +3,7 @@ import logging.config
 from config import settings
 import os
 import datetime
-import logging
+import json
 from src.data_ingestion import pdf_processor, metadata_integrator
 from src.text_processing import cleaner
 
@@ -48,6 +48,22 @@ def main():
     logger.info(f"Processed {len(extracted_texts)} PDFs successfully")
     logger.info(f"Failed to process {len(failed_files)} PDFs")
 
+    # Clean extracted texts
+    cleaner_instance = cleaner.TextCleaner()
+    cleaned_texts = cleaner_instance.process_documents(extracted_texts)
+    cleaned_texts_file = os.path.join(run_folder, "cleaned_texts.json")
+    with open(cleaned_texts_file, 'w', encoding='utf-8') as f:
+        json.dump(cleaned_texts, f, ensure_ascii=False, indent=4)
+    logger.info(f"Cleaned texts saved to: {cleaned_texts_file}")
+    
+    # Integrate metadata
+    integrator = metadata_integrator.MetadataIntegrator(METADATA_FILE)
+    integrated_documents = integrator.integrate_metadata(cleaned_texts)
+    integrated_file = os.path.join(run_folder, "integrated_documents.json")
+    with open(integrated_file, 'w', encoding='utf-8') as f:
+        json.dump(integrated_documents, f, ensure_ascii=False, indent=4)
+    logger.info(f"Integrated documents saved to: {integrated_file}")
+    
     logger.info("Run completed")
 
 if __name__ == "__main__":
