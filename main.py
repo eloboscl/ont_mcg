@@ -1,13 +1,16 @@
-import logging
-import logging.config
-from config import settings
-import os
 import datetime
 import json
+import logging
+import logging.config
+import os
+
 import nltk
-from src.data_ingestion import pdf_processor, metadata_integrator
+import numpy as np
+
+from config import settings
+from config.settings import METADATA_FILE, PDF_DIR
+from src.data_ingestion import metadata_integrator, pdf_processor
 from src.text_processing import cleaner
-from config.settings import PDF_DIR, METADATA_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,17 @@ def download_nltk_data():
         logger.info("Please manually download NLTK data using the following commands:")
         logger.info(">>> import nltk")
         logger.info(">>> nltk.download('punkt_tab')")
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
 
 def main():
     # Set up logging
@@ -87,9 +101,14 @@ def main():
     integrated_documents = integrator.integrate_metadata(cleaned_texts)
     integrated_file = os.path.join(run_folder, "integrated_documents.json")
     with open(integrated_file, 'w', encoding='utf-8') as f:
-        json.dump(integrated_documents, f, ensure_ascii=False, indent=4)
+        json.dump(integrated_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
     logger.info(f"Integrated documents saved to: {integrated_file}")
-    
+
+    # Log some statistics about the integrated documents
+    docs_with_metadata = sum(1 for doc in integrated_documents.values() if 'metadata' in doc)
+    logger.info(f"Documents with integrated metadata: {docs_with_metadata}")
+    logger.info(f"Documents without metadata: {len(integrated_documents) - docs_with_metadata}")
+
     logger.info("Run completed")
 
 if __name__ == "__main__":
