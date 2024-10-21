@@ -16,7 +16,7 @@ class MetadataIntegrator:
         integrated_documents = {}
         for key, doc_content in documents.items():
             metadata_row = self.metadata[self.metadata['document_name'] == key + '.pdf']
-            print(metadata_row)
+            #print(metadata_row)
             if not metadata_row.empty:
                 integrated_doc = {
                     'content': doc_content,

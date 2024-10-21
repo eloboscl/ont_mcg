@@ -2,14 +2,18 @@ import datetime
 import json
 import logging
 import logging.config
+import multiprocessing
 import os
 
 import nltk
 import numpy as np
+import torch
 
 from config import settings
-from config.settings import METADATA_FILE, PDF_DIR
+from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
+                             METADATA_FILE, PDF_DIR)
 from src.data_ingestion import metadata_integrator, pdf_processor
+from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
 
 logger = logging.getLogger(__name__)
@@ -89,7 +93,7 @@ def main():
     logger.info(f"Failed to process {len(failed_files)} PDFs")
     
     # Clean extracted texts
-    cleaner_instance = cleaner.TextCleaner()
+    cleaner_instance = cleaner.TextCleaner(custom_stopwords=CUSTOM_STOP_WORDS)
     cleaned_texts = cleaner_instance.process_documents(extracted_texts)
     cleaned_texts_file = os.path.join(run_folder, "cleaned_texts.json")
     with open(cleaned_texts_file, 'w', encoding='utf-8') as f:
@@ -108,6 +112,24 @@ def main():
     docs_with_metadata = sum(1 for doc in integrated_documents.values() if 'metadata' in doc)
     logger.info(f"Documents with integrated metadata: {docs_with_metadata}")
     logger.info(f"Documents without metadata: {len(integrated_documents) - docs_with_metadata}")
+
+     # Perform advanced NLP analysis
+    logger.info("Starting advanced NLP analysis...")
+    analyzed_documents = advanced_nlp.process_documents(integrated_documents)
+    analyzed_file = os.path.join(run_folder, "analyzed_documents.json")
+    with open(analyzed_file, 'w', encoding='utf-8') as f:
+        json.dump(analyzed_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
+    logger.info(f"NLP analysis completed. Results saved to: {analyzed_file}")
+
+    # Log some statistics about the analyzed documents
+    total_entities = sum(len(doc['nlp_analysis']['entities']) for doc in analyzed_documents.values())
+    avg_sentiment = sum(doc['nlp_analysis']['sentiment'] for doc in analyzed_documents.values()) / len(analyzed_documents)
+    all_key_phrases = [phrase for doc in analyzed_documents.values() for phrase in doc['nlp_analysis']['key_phrases']]
+    top_key_phrases = sorted(set(all_key_phrases), key=all_key_phrases.count, reverse=True)[:10]
+
+    logger.info(f"Total entities found: {total_entities}")
+    logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
+    logger.info(f"Top 10 key phrases across all documents: {', '.join(top_key_phrases)}")
 
     logger.info("Run completed")
 

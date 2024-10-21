@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict
+from typing import Dict, List
 
 # Project root directory
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +32,16 @@ MIN_EDGE_WEIGHT = 2  # Minimum edge weight for network visualization
 # Visualization settings
 PLOT_WIDTH = 1200  # Width of plots in pixels
 PLOT_HEIGHT = 800  # Height of plots in pixels
+
+CUSTOM_STOP_WORDS = {'of', 'many', 'must', 'new', 'york', 'one', 'two', 'three', 'four', 'five', 
+                    'six', 'seven', 'eight', 'nine', 'ten', 'thu', 'they', 'this', 'these', 
+                    'way', 'may', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 
+                    'august', 'september', 'october', 'november', 'december', 'rather', 'well', 
+                    'used', 'use', 'example', 'first', 'second', 'third', 'part', 'see', 'thus',
+                    'set', 'term', 'found', 'mean', 'given', 'number', 'point', 'using', 'effect',
+                    'suggest', 'although', 'often', 'particular', 'include', 'based', 'within',
+                    'italy'
+                    }
 
 # Management control terms
 MANAGEMENT_CONTROL_TERMS: List[str] = [
