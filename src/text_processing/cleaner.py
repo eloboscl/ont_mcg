@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 
 class TextCleaner:
     def __init__(self, custom_stopwords=None):
+        nltk.download('punkt', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        
         self.stop_words = set(stopwords.words('english'))
         if custom_stopwords:
             self.stop_words.update(custom_stopwords)
+
 
     def clean_text(self, text):
         """

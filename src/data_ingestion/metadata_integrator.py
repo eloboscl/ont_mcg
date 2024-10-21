@@ -1,7 +1,9 @@
-import pandas as pd
 import json
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -12,18 +14,29 @@ class MetadataIntegrator:
 
     def integrate_metadata(self, documents: Dict[str, Any]) -> Dict[str, Any]:
         integrated_documents = {}
-        for key, doc in documents.items():
-            metadata_row = self.metadata[self.metadata['document_name'] == key]
+        for key, doc_content in documents.items():
+            metadata_row = self.metadata[self.metadata['document_name'] == key + '.pdf']
+            print(metadata_row)
             if not metadata_row.empty:
-                integrated_doc = doc.copy()
+                integrated_doc = {
+                    'content': doc_content,
+                    'metadata': {}
+                }
                 for column in metadata_row.columns:
                     if column != 'document_name':
-                        integrated_doc[column] = metadata_row[column].values[0]
+                        value = metadata_row[column].values[0]
+                        if isinstance(value, np.integer):
+                            value = int(value)
+                        elif isinstance(value, np.floating):
+                            value = float(value)
+                        elif isinstance(value, np.ndarray):
+                            value = value.tolist()
+                        integrated_doc['metadata'][column] = value
                 integrated_documents[key] = integrated_doc
                 logger.info(f"Integrated metadata for document: {key}")
             else:
                 logger.warning(f"No metadata found for document: {key}")
-                integrated_documents[key] = doc
+                integrated_documents[key] = {'content': doc_content}
         return integrated_documents
 
 def main(documents_file: str, metadata_file: str, output_file: str):

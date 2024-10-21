@@ -1,12 +1,18 @@
-import logging
-import logging.config
-from config import settings
-import os
 import datetime
 import json
-from src.data_ingestion import pdf_processor, metadata_integrator
+import logging
+import logging.config
+import os
+
+import nltk
+import numpy as np
+
+from config import settings
+from config.settings import METADATA_FILE, PDF_DIR
+from src.data_ingestion import metadata_integrator, pdf_processor
 from src.text_processing import cleaner
 
+logger = logging.getLogger(__name__)
 
 def setup_run_folder():
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
@@ -24,6 +30,36 @@ def setup_logging(run_folder):
             logging.StreamHandler()
         ]
     )
+
+def download_nltk_data():
+    resources = ['punkt', 'stopwords', 'averaged_perceptron_tagger']
+    for resource in resources:
+        try:
+            nltk.download(resource, quiet=True)
+            logger.info(f"Successfully downloaded NLTK resource: {resource}")
+        except Exception as e:
+            logger.error(f"Failed to download NLTK resource {resource}: {str(e)}")
+    
+    # Explicitly download punkt_tab
+    try:
+        nltk.download('punkt_tab', quiet=True)
+        logger.info("Successfully downloaded NLTK resource: punkt_tab")
+    except Exception as e:
+        logger.error(f"Failed to download NLTK resource punkt_tab: {str(e)}")
+        logger.info("Please manually download NLTK data using the following commands:")
+        logger.info(">>> import nltk")
+        logger.info(">>> nltk.download('punkt_tab')")
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
 
 def main():
     # Set up logging
@@ -43,11 +79,15 @@ def main():
     logger = logging.getLogger(__name__)
     logger.info(f"Starting new run in folder: {run_folder}")
     
+    # Ensure NLTK data is downloaded
+    download_nltk_data()
+    
+    # Process PDFs
     extracted_texts, relevance_scores, mc_terms_found, failed_files = pdf_processor.process_pdfs_in_batches(run_folder)
     
     logger.info(f"Processed {len(extracted_texts)} PDFs successfully")
     logger.info(f"Failed to process {len(failed_files)} PDFs")
-
+    
     # Clean extracted texts
     cleaner_instance = cleaner.TextCleaner()
     cleaned_texts = cleaner_instance.process_documents(extracted_texts)
@@ -61,9 +101,14 @@ def main():
     integrated_documents = integrator.integrate_metadata(cleaned_texts)
     integrated_file = os.path.join(run_folder, "integrated_documents.json")
     with open(integrated_file, 'w', encoding='utf-8') as f:
-        json.dump(integrated_documents, f, ensure_ascii=False, indent=4)
+        json.dump(integrated_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
     logger.info(f"Integrated documents saved to: {integrated_file}")
-    
+
+    # Log some statistics about the integrated documents
+    docs_with_metadata = sum(1 for doc in integrated_documents.values() if 'metadata' in doc)
+    logger.info(f"Documents with integrated metadata: {docs_with_metadata}")
+    logger.info(f"Documents without metadata: {len(integrated_documents) - docs_with_metadata}")
+
     logger.info("Run completed")
 
 if __name__ == "__main__":
