@@ -20,6 +20,7 @@ dependencies = [
     "pynvml",
     "psutil",
     "fitz",
+    "openpyxl",
 ]
 
 [build-system]
