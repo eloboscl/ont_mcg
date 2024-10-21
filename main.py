@@ -4,9 +4,12 @@ from config import settings
 import os
 import datetime
 import json
+import nltk
 from src.data_ingestion import pdf_processor, metadata_integrator
 from src.text_processing import cleaner
+from config.settings import PDF_DIR, METADATA_FILE
 
+logger = logging.getLogger(__name__)
 
 def setup_run_folder():
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
@@ -24,6 +27,25 @@ def setup_logging(run_folder):
             logging.StreamHandler()
         ]
     )
+
+def download_nltk_data():
+    resources = ['punkt', 'stopwords', 'averaged_perceptron_tagger']
+    for resource in resources:
+        try:
+            nltk.download(resource, quiet=True)
+            logger.info(f"Successfully downloaded NLTK resource: {resource}")
+        except Exception as e:
+            logger.error(f"Failed to download NLTK resource {resource}: {str(e)}")
+    
+    # Explicitly download punkt_tab
+    try:
+        nltk.download('punkt_tab', quiet=True)
+        logger.info("Successfully downloaded NLTK resource: punkt_tab")
+    except Exception as e:
+        logger.error(f"Failed to download NLTK resource punkt_tab: {str(e)}")
+        logger.info("Please manually download NLTK data using the following commands:")
+        logger.info(">>> import nltk")
+        logger.info(">>> nltk.download('punkt_tab')")
 
 def main():
     # Set up logging
@@ -43,11 +65,15 @@ def main():
     logger = logging.getLogger(__name__)
     logger.info(f"Starting new run in folder: {run_folder}")
     
+    # Ensure NLTK data is downloaded
+    download_nltk_data()
+    
+    # Process PDFs
     extracted_texts, relevance_scores, mc_terms_found, failed_files = pdf_processor.process_pdfs_in_batches(run_folder)
     
     logger.info(f"Processed {len(extracted_texts)} PDFs successfully")
     logger.info(f"Failed to process {len(failed_files)} PDFs")
-
+    
     # Clean extracted texts
     cleaner_instance = cleaner.TextCleaner()
     cleaned_texts = cleaner_instance.process_documents(extracted_texts)
