@@ -75,7 +75,7 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
     logger.info(f"Found {len(combined_text)} documents for decade {start_year}-{end_year}")
     return " ".join(combined_text)
 
-def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> Tuple[WordCloud, Dict[str, int]]:
+def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> tuple[WordCloud, Dict[str, int]]:
     """Create wordcloud with emphasis on management control terms."""
     if not text.strip():
         logger.warning("Empty text provided for wordcloud")
