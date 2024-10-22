@@ -44,8 +44,8 @@ def prepare_texts_for_lda(documents: Dict[str, Dict]) -> List[List[str]]:
     stop_words = get_stop_words()
     
     for doc in documents.values():
-        if 'cleaned_text' in doc:
-            tokens = preprocess_text(doc['cleaned_text'], stop_words)
+        if 'content' in doc:
+            tokens = preprocess_text(doc['content'], stop_words)
             if tokens:  # Only add if we have tokens
                 processed_texts.append(tokens)
     

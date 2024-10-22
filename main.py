@@ -69,7 +69,7 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NumpyEncoder, self).default(obj)
 
-def log_summary_statistics(analyzed_documents, lda_model, author_network, trend_results):
+def log_summary_statistics(analyzed_documents, lda_model, trend_results): #, author_network
     logger.info("Logging summary statistics...")
 
     # Document statistics
@@ -96,11 +96,11 @@ def log_summary_statistics(analyzed_documents, lda_model, author_network, trend_
 
     # Network analysis statistics
     logger.info(f"Author collaboration network statistics:")
-    logger.info(f"  Number of authors: {author_network.number_of_nodes()}")
-    logger.info(f"  Number of collaborations: {author_network.number_of_edges()}")
-    degree_centrality = nx.degree_centrality(author_network)
-    top_authors = sorted(degree_centrality, key=degree_centrality.get, reverse=True)[:5]
-    logger.info(f"  Top 5 authors by degree centrality: {top_authors}")
+    #logger.info(f"  Number of authors: {author_network.number_of_nodes()}")
+    #logger.info(f"  Number of collaborations: {author_network.number_of_edges()}")
+    #degree_centrality = nx.degree_centrality(author_network)
+    #top_authors = sorted(degree_centrality, key=degree_centrality.get, reverse=True)[:5]
+    #logger.info(f"  Top 5 authors by degree centrality: {top_authors}")
 
     # Trend analysis statistics
     logger.info("Trend analysis summary:")
@@ -237,7 +237,7 @@ def main():
 
 
     # Log summary statistics
-    log_summary_statistics(analyzed_documents, lda_model, trend_results)
+    log_summary_statistics(analyzed_documents, lda_model, trend_results=trend_results)
 
     logger.info("Run completed")
 
