@@ -7,7 +7,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Input and output directories
 INPUT_DIR = os.path.join(ROOT_DIR, 'input')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
-PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP2/'
+PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP/'
 METADATA_FILE = os.path.join(INPUT_DIR, '20240717_metadata_corpus.xlsx')
 
 # Resource usage settings
@@ -33,15 +33,65 @@ MIN_EDGE_WEIGHT = 2  # Minimum edge weight for network visualization
 PLOT_WIDTH = 1200  # Width of plots in pixels
 PLOT_HEIGHT = 800  # Height of plots in pixels
 
-CUSTOM_STOP_WORDS = {'of', 'many', 'must', 'new', 'york', 'one', 'two', 'three', 'four', 'five', 
-                    'six', 'seven', 'eight', 'nine', 'ten', 'thu', 'they', 'this', 'these', 
-                    'way', 'may', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 
-                    'august', 'september', 'october', 'november', 'december', 'rather', 'well', 
-                    'used', 'use', 'example', 'first', 'second', 'third', 'part', 'see', 'thus',
-                    'set', 'term', 'found', 'mean', 'given', 'number', 'point', 'using', 'effect',
-                    'suggest', 'although', 'often', 'particular', 'include', 'based', 'within',
-                    'italy'
-                    }
+CUSTOM_STOP_WORDS = {
+    # Sneaky words
+    'of', 'many', 'must', 'new', 'york', 'one', 'two', 'three', 'four', 'five', 
+    'six', 'seven', 'eight', 'nine', 'ten', 'thu', 'they', 'this', 'these', 
+    'way', 'may', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 
+    'august', 'september', 'october', 'november', 'december', 'rather', 'well', 
+    'used', 'use', 'example', 'first', 'second', 'third', 'part', 'see', 'thus',
+    'set', 'term', 'found', 'mean', 'given', 'number', 'point', 'using', 'effect',
+    'suggest', 'although', 'often', 'particular', 'include', 'based', 'within',
+    'italy'
+    # Single letters and numbers
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    
+    # Common academic words that don't add meaning
+    'et', 'al', 'fig', 'table', 'paper', 'study', 'research', 'analysis',
+    'data', 'method', 'results', 'finding', 'findings', 'found', 'showed',
+    'shown', 'show', 'shows', 'discussed', 'discussion', 'conclude', 'concludes',
+    'conclusion', 'conclusions', 'introduction', 'methodology', 'abstract',
+    'keywords', 'key', 'words', 'word', 'page', 'pages', 'vol', 'volume',
+    'chapter', 'section', 'appendix', 'doi', 'isbn', 'issn', 'journal',
+    
+    # Common prepositions and conjunctions
+    'in', 'on', 'at', 'to', 'for', 'with', 'by', 'from', 'up', 'about',
+    'into', 'over', 'after', 'beneath', 'under', 'above', 'and', 'or',
+    'but', 'nor', 'so', 'yet', 'both', 'either', 'neither',
+    
+    # Common verbs and their forms
+    'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+    'had', 'do', 'does', 'did', 'done', 'doing', 'can', 'could', 'will',
+    'would', 'shall', 'should', 'may', 'might', 'must', 'take', 'takes',
+    'took', 'taken', 'taking', 'make', 'makes', 'made', 'making',
+    
+    # Academic-specific words
+    'literature', 'review', 'theory', 'theoretical', 'framework', 'model',
+    'approach', 'approaches', 'proposed', 'presents', 'presented', 'present',
+    'demonstrates', 'demonstrated', 'demonstrate', 'suggests', 'suggested',
+    'suggest', 'indicates', 'indicated', 'indicate', 'implies', 'implied',
+    'imply', 'notes', 'noted', 'note',
+    
+    # Units and measurements
+    'mm', 'cm', 'km', 'kg', 'mg', 'ml', 'pct', 'percent', 'percentage',
+    
+    # Common abbreviations
+    'ie', 'eg', 'etc', 'vs', 'cf', 'pp', 'ca', 'ibid', 'nb',
+
+    # et al
+    'et al',
+    
+    # Others
+    'also', 'however', 'therefore', 'thus', 'hence', 'moreover',
+    'furthermore', 'additionally', 'consequently', 'nevertheless',
+    'meanwhile', 'nonetheless', 'whereas', 'while', 'despite',
+    'although', 'though', 'even', 'still', 'yet', 'otherwise',
+    'accordingly', 'indeed', 'namely', 'specifically', 'particularly',
+    'especially', 'significantly', 'substantially', 'relatively',
+    'approximately', 'roughly', 'about', 'around', 'nearly', 'almost'
+}
 
 # Management control terms
 MANAGEMENT_CONTROL_TERMS: List[str] = [
