@@ -7,11 +7,49 @@ from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from PIL import Image
 from wordcloud import WordCloud
 
 logger = logging.getLogger(__name__) 
+
+def save_word_frequencies(word_frequencies: Dict[str, int], decade_name: str, output_dir: str):
+    """Save word frequencies to CSV file with rank information."""
+    if not word_frequencies:
+        logger.warning(f"No word frequencies to save for {decade_name}")
+        return
+    
+    # Convert to DataFrame and sort by frequency
+    df = pd.DataFrame([
+        {"concept": word, "frequency": freq}
+        for word, freq in word_frequencies.items()
+    ])
+    df = df.sort_values("frequency", ascending=False)
+    df.insert(0, "rank", range(1, len(df) + 1))  # Add rank column
+    
+    # Save to CSV
+    csv_path = os.path.join(output_dir, f'wordcloud_freq_{decade_name}.csv')
+    df.to_csv(csv_path, index=False)
+    logger.info(f"Saved frequency data for {decade_name}: {csv_path}")
+    
+    return df
+
+def create_composite_frequency_data(all_decades_data: Dict[str, pd.DataFrame], output_dir: str):
+    """Create and save composite frequency data from all decades."""
+    # Combine all decades' data
+    composite_data = []
+    for decade, df in all_decades_data.items():
+        df_copy = df.copy()
+        df_copy['decade'] = decade
+        composite_data.append(df_copy)
+    
+    composite_df = pd.concat(composite_data, ignore_index=True)
+    
+    # Save composite data
+    csv_path = os.path.join(output_dir, 'wordcloud_freq_composite.csv')
+    composite_df.to_csv(csv_path, index=False)
+    logger.info(f"Saved composite frequency data: {csv_path}")
 
 def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str:
     """Prepare text for wordcloud by extracting cleaned text from the correct decade."""
@@ -24,7 +62,6 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
             year = int(metadata.get('year', 0))
             print(year)
             if start_year <= year <= end_year:
-                # Get the cleaned text, defaulting to regular content if cleaned isn't available
                 text = doc.get('content', doc.get('content', ''))
                 if text:
                     combined_text.append(text)
@@ -38,16 +75,19 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
     logger.info(f"Found {len(combined_text)} documents for decade {start_year}-{end_year}")
     return " ".join(combined_text)
 
-def create_wordcloud(text: str, mc_terms: List[str]) -> WordCloud:
+def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> Tuple[WordCloud, Dict[str, int]]:
     """Create wordcloud with emphasis on management control terms."""
     if not text.strip():
         logger.warning("Empty text provided for wordcloud")
-        return None
+        return None, {}
     
     # Split text into words and count frequencies
     words = text.lower().split()
     word_frequencies = Counter(words)
-    
+
+    # Filter out low-frequency words
+    word_frequencies = {k: v for k, v in word_frequencies.items() if v >= min_freq}
+
     # Increase weight for management control terms
     for term in mc_terms:
         term_lower = term.lower()
@@ -78,10 +118,10 @@ def create_wordcloud(text: str, mc_terms: List[str]) -> WordCloud:
             relative_scaling=0.5
         ).generate_from_frequencies(word_frequencies)
         
-        return wordcloud
+        return wordcloud, word_frequencies
     except Exception as e:
         logger.error(f"Error creating wordcloud: {e}")
-        return None
+        return None, {}
 
 def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_dir: str):
     """Generate wordclouds for each decade."""
@@ -96,11 +136,12 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
         (1990, 1999, '1990s'),
         (2000, 2009, '2000s'),
         (2010, 2019, '2010s'),
-        (2020, 2029, '2020s')
+        (2020, 2024, '2020s')
     ]
     
     wordcloud_images = []
-    
+    all_decades_data = {}
+
     for start_year, end_year, decade_name in decades:
         logger.info(f"Processing decade: {decade_name}")
         
@@ -108,7 +149,7 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
         decade_text = prepare_text_for_wordcloud(documents, (start_year, end_year))
         
         if decade_text:
-            wordcloud = create_wordcloud(decade_text, mc_terms)
+            wordcloud, frequencies = create_wordcloud(decade_text, mc_terms)
             
             if wordcloud:
                 # Save individual wordcloud
@@ -124,6 +165,10 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
                 plt.savefig(filepath, dpi=300, bbox_inches='tight')
                 plt.close()
                 
+                # Save frequency data and store for composite
+                decade_df = save_word_frequencies(frequencies, decade_name, wordcloud_dir)
+                all_decades_data[decade_name] = decade_df
+
                 # Store the image for the composite
                 wordcloud_images.append(Image.open(filepath))
                 logger.info(f"Created wordcloud for {decade_name}")
@@ -134,6 +179,7 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
     
     if wordcloud_images:
         create_composite_image(wordcloud_images, wordcloud_dir)
+        create_composite_frequency_data(all_decades_data, wordcloud_dir)
     else:
         logger.warning("No wordcloud images generated to create composite")
 
