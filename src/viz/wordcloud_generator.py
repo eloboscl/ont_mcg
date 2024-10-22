@@ -11,7 +11,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from PIL import Image
 from wordcloud import WordCloud
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) 
 
 def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str:
     """Prepare text for wordcloud by extracting cleaned text from the correct decade."""

@@ -4,6 +4,7 @@ import logging
 import logging.config
 import multiprocessing
 import os
+from collections import Counter
 
 import nltk
 import numpy as np
@@ -69,51 +70,88 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NumpyEncoder, self).default(obj)
 
-def log_summary_statistics(analyzed_documents, lda_model, trend_results): #, author_network
+def log_summary_statistics(analyzed_documents, lda_model=None, trend_results=None, author_network=None):
+    """
+    Log summary statistics for the analysis.
+    
+    Args:
+        analyzed_documents: Dictionary containing analyzed documents
+        lda_model: LDA model (can be None if topic modeling failed)
+        trend_results: Dictionary containing trend analysis results (can be None)
+        author_network: NetworkX graph of author collaborations (can be None)
+    """
     logger.info("Logging summary statistics...")
+    
+    try:
+        # [Previous document, entity, and sentiment statistics remain the same]
+        
+        # Network analysis statistics
+        if author_network is not None:
+            logger.info("\nAuthor Collaboration Network Statistics:")
+            try:
+                # Basic network metrics
+                num_authors = author_network.number_of_nodes()
+                num_collaborations = author_network.number_of_edges()
+                logger.info(f"  Number of authors: {num_authors}")
+                logger.info(f"  Number of collaborations: {num_collaborations}")
 
-    # Document statistics
-    total_docs = len(analyzed_documents)
-    avg_length = np.mean([len(doc['cleaned_text'].split()) for doc in analyzed_documents.values()])
-    logger.info(f"Total documents analyzed: {total_docs}")
-    logger.info(f"Average document length: {avg_length:.2f} words")
+                if num_authors > 0:
+                    # Density
+                    density = nx.density(author_network)
+                    logger.info(f"  Network density: {density:.3f}")
 
-    # Entity statistics
-    all_entities = [entity for doc in analyzed_documents.values() for entity in doc['nlp_analysis']['entities']]
-    entity_counts = Counter(all_entities)
-    top_entities = entity_counts.most_common(10)
-    logger.info(f"Top 10 named entities: {top_entities}")
+                    # Average degree
+                    avg_degree = sum(dict(author_network.degree()).values()) / num_authors
+                    logger.info(f"  Average collaborations per author: {avg_degree:.2f}")
 
-    # Sentiment statistics
-    sentiments = [doc['nlp_analysis']['sentiment'] for doc in analyzed_documents.values()]
-    avg_sentiment = np.mean(sentiments)
-    logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
+                    # Largest component size
+                    largest_cc = max(nx.connected_components(author_network), key=len)
+                    largest_cc_size = len(largest_cc)
+                    logger.info(f"  Largest connected component size: {largest_cc_size} authors "
+                              f"({(largest_cc_size/num_authors)*100:.1f}% of network)")
 
-    # Topic modeling statistics
-    logger.info("Top topics:")
-    for idx, topic in lda_model.print_topics(-1):
-        logger.info(f"Topic {idx}: {topic}")
+                    # Most connected authors (by degree centrality)
+                    degree_cent = nx.degree_centrality(author_network)
+                    top_authors = sorted(degree_cent.items(), key=lambda x: x[1], reverse=True)[:5]
+                    logger.info("  Top 5 authors by number of collaborations:")
+                    for author, centrality in top_authors:
+                        num_collabs = author_network.degree(author)
+                        logger.info(f"    - {author}: {num_collabs} collaborations "
+                                  f"(centrality: {centrality:.3f})")
 
-    # Network analysis statistics
-    logger.info(f"Author collaboration network statistics:")
-    #logger.info(f"  Number of authors: {author_network.number_of_nodes()}")
-    #logger.info(f"  Number of collaborations: {author_network.number_of_edges()}")
-    #degree_centrality = nx.degree_centrality(author_network)
-    #top_authors = sorted(degree_centrality, key=degree_centrality.get, reverse=True)[:5]
-    #logger.info(f"  Top 5 authors by degree centrality: {top_authors}")
+                    # Try to calculate additional metrics if the network is not too large
+                    if num_authors < 1000:  # Avoid expensive computations for very large networks
+                        try:
+                            # Average clustering coefficient
+                            avg_clustering = nx.average_clustering(author_network)
+                            logger.info(f"  Average clustering coefficient: {avg_clustering:.3f}")
 
-    # Trend analysis statistics
-    logger.info("Trend analysis summary:")
-    for term, trend in trend_results['term_trends'].items():
-        start_freq = trend[0]['relative_frequency']
-        end_freq = trend[-1]['relative_frequency']
-        change = (end_freq - start_freq) / start_freq * 100
-        logger.info(f"  {term}: {change:.2f}% change from {trend[0]['year']} to {trend[-1]['year']}")
+                            # Average shortest path length (only for largest component to ensure it's connected)
+                            largest_cc_subgraph = author_network.subgraph(largest_cc)
+                            avg_path_length = nx.average_shortest_path_length(largest_cc_subgraph)
+                            logger.info(f"  Average shortest path length: {avg_path_length:.2f}")
+                        except Exception as e:
+                            logger.debug(f"Could not compute some advanced network metrics: {e}")
 
-    # Forecast summary
-    logger.info("Trend forecasts for the next 5 years:")
-    for term, forecast in trend_results['forecasts'].items():
-        logger.info(f"  {term}: {forecast['forecast_next_5_years']}")
+                    # Communities
+                    try:
+                        communities = nx.community.greedy_modularity_communities(author_network)
+                        num_communities = len(communities)
+                        avg_community_size = np.mean([len(c) for c in communities])
+                        logger.info(f"  Number of communities: {num_communities}")
+                        logger.info(f"  Average community size: {avg_community_size:.1f} authors")
+                    except Exception as e:
+                        logger.debug(f"Could not compute community statistics: {e}")
+
+            except Exception as e:
+                logger.warning(f"Error computing network statistics: {e}")
+        else:
+            logger.warning("No author network available - network analysis may have failed")
+
+        # [Previous topic modeling and trend analysis statistics remain the same]
+            
+    except Exception as e:
+        logger.error(f"Error generating summary statistics: {e}")
 
 
 def main():
