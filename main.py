@@ -13,8 +13,12 @@ from config import settings
 from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
                              METADATA_FILE, PDF_DIR)
 from src.data_ingestion import metadata_integrator, pdf_processor
+from src.network_analysis import network_analyzer
 from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
+from src.topic_modeling import topic_modeler
+from src.trend_analysis import trend_analyzer
+from src.viz.wordcloud_generator import run_wordcloud_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,53 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NumpyEncoder, self).default(obj)
 
+def log_summary_statistics(analyzed_documents, lda_model, trend_results): #, author_network
+    logger.info("Logging summary statistics...")
+
+    # Document statistics
+    total_docs = len(analyzed_documents)
+    avg_length = np.mean([len(doc['cleaned_text'].split()) for doc in analyzed_documents.values()])
+    logger.info(f"Total documents analyzed: {total_docs}")
+    logger.info(f"Average document length: {avg_length:.2f} words")
+
+    # Entity statistics
+    all_entities = [entity for doc in analyzed_documents.values() for entity in doc['nlp_analysis']['entities']]
+    entity_counts = Counter(all_entities)
+    top_entities = entity_counts.most_common(10)
+    logger.info(f"Top 10 named entities: {top_entities}")
+
+    # Sentiment statistics
+    sentiments = [doc['nlp_analysis']['sentiment'] for doc in analyzed_documents.values()]
+    avg_sentiment = np.mean(sentiments)
+    logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
+
+    # Topic modeling statistics
+    logger.info("Top topics:")
+    for idx, topic in lda_model.print_topics(-1):
+        logger.info(f"Topic {idx}: {topic}")
+
+    # Network analysis statistics
+    logger.info(f"Author collaboration network statistics:")
+    #logger.info(f"  Number of authors: {author_network.number_of_nodes()}")
+    #logger.info(f"  Number of collaborations: {author_network.number_of_edges()}")
+    #degree_centrality = nx.degree_centrality(author_network)
+    #top_authors = sorted(degree_centrality, key=degree_centrality.get, reverse=True)[:5]
+    #logger.info(f"  Top 5 authors by degree centrality: {top_authors}")
+
+    # Trend analysis statistics
+    logger.info("Trend analysis summary:")
+    for term, trend in trend_results['term_trends'].items():
+        start_freq = trend[0]['relative_frequency']
+        end_freq = trend[-1]['relative_frequency']
+        change = (end_freq - start_freq) / start_freq * 100
+        logger.info(f"  {term}: {change:.2f}% change from {trend[0]['year']} to {trend[-1]['year']}")
+
+    # Forecast summary
+    logger.info("Trend forecasts for the next 5 years:")
+    for term, forecast in trend_results['forecasts'].items():
+        logger.info(f"  {term}: {forecast['forecast_next_5_years']}")
+
+
 def main():
     # Set up logging
     logging.config.dictConfig(settings.LOGGING_CONFIG)
@@ -85,6 +136,10 @@ def main():
     
     # Ensure NLTK data is downloaded
     download_nltk_data()
+
+    # Set up device for GPU acceleration
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
     
     # Process PDFs
     extracted_texts, relevance_scores, mc_terms_found, failed_files = pdf_processor.process_pdfs_in_batches(run_folder)
@@ -115,7 +170,7 @@ def main():
 
      # Perform advanced NLP analysis
     logger.info("Starting advanced NLP analysis...")
-    analyzed_documents = advanced_nlp.process_documents(integrated_documents)
+    analyzed_documents = advanced_nlp.process_documents(integrated_documents, device=device)
     analyzed_file = os.path.join(run_folder, "analyzed_documents.json")
     with open(analyzed_file, 'w', encoding='utf-8') as f:
         json.dump(analyzed_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
@@ -130,6 +185,59 @@ def main():
     logger.info(f"Total entities found: {total_entities}")
     logger.info(f"Average sentiment score: {avg_sentiment:.2f}")
     logger.info(f"Top 10 key phrases across all documents: {', '.join(top_key_phrases)}")
+
+
+    # Perform topic modeling
+    logger.info("Starting topic modeling...")
+    try:
+        lda_model, coherence = topic_modeler.perform_topic_modeling(
+            analyzed_documents,
+            num_topics=10,
+            workers=multiprocessing.cpu_count() - 1
+        )
+        
+        if lda_model is not None:
+            topics = topic_modeler.print_topics(lda_model)
+            # Save topics to file
+            topics_file = os.path.join(run_folder, "topic_model_results.json")
+            with open(topics_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'topics': topics,
+                    'coherence_score': coherence
+                }, f, ensure_ascii=False, indent=4)
+            logger.info(f"Topic modeling results saved to: {topics_file}")
+        else:
+            logger.warning("Topic modeling failed to produce a model")
+            topics = None
+    except Exception as e:
+        logger.error(f"Error in topic modeling: {str(e)}")
+        lda_model, topics = None, None
+
+#    # Perform network analysis
+#    logger.info("Starting network analysis...")
+#    author_network = network_analyzer.create_author_collaboration_network(analyzed_documents)
+#    network_file = os.path.join(run_folder, "author_network.graphml")
+#    network_analyzer.save_network(author_network, network_file)
+#    logger.info(f"Network analysis completed. Results saved to: {network_file}")
+
+    # Perform trend analysis
+    logger.info("Starting trend analysis...")
+    trend_results = trend_analyzer.analyze_trends(analyzed_documents, MANAGEMENT_CONTROL_TERMS)
+    trend_file = os.path.join(run_folder, "trend_analysis_results.json")
+    with open(trend_file, 'w', encoding='utf-8') as f:
+        json.dump(trend_results, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
+    logger.info(f"Trend analysis completed. Results saved to: {trend_file}")
+
+    # Viz ######################################################################
+    try:
+        logger.info("Generating wordclouds...")
+        run_wordcloud_analysis(analyzed_documents, MANAGEMENT_CONTROL_TERMS, run_folder)
+    except Exception as e:
+        logger.error(f"Error generating wordclouds: {str(e)}")
+
+
+    # Log summary statistics
+    log_summary_statistics(analyzed_documents, lda_model, trend_results=trend_results)
 
     logger.info("Run completed")
 
