@@ -212,12 +212,12 @@ def main():
         logger.error(f"Error in topic modeling: {str(e)}")
         lda_model, topics = None, None
 
-    # Perform network analysis
-    logger.info("Starting network analysis...")
-    author_network = network_analyzer.create_author_collaboration_network(analyzed_documents)
-    network_file = os.path.join(run_folder, "author_network.graphml")
-    network_analyzer.save_network(author_network, network_file)
-    logger.info(f"Network analysis completed. Results saved to: {network_file}")
+#    # Perform network analysis
+#    logger.info("Starting network analysis...")
+#    author_network = network_analyzer.create_author_collaboration_network(analyzed_documents)
+#    network_file = os.path.join(run_folder, "author_network.graphml")
+#    network_analyzer.save_network(author_network, network_file)
+#    logger.info(f"Network analysis completed. Results saved to: {network_file}")
 
     # Perform trend analysis
     logger.info("Starting trend analysis...")
@@ -228,7 +228,7 @@ def main():
     logger.info(f"Trend analysis completed. Results saved to: {trend_file}")
 
     # Log summary statistics
-    log_summary_statistics(analyzed_documents, lda_model, author_network, trend_results)
+    log_summary_statistics(analyzed_documents, lda_model, trend_results)
 
     logger.info("Run completed")
 
