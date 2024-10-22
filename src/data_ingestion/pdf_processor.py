@@ -1,17 +1,20 @@
-import os
 import json
 import logging
-import time
+import os
 import re
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm import tqdm
-from typing import List, Dict, Tuple
 import statistics
-import torch
-from transformers import AutoTokenizer, AutoModel
-import fitz  # PyMuPDF
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Dict, List, Tuple
 
-from config.settings import PDF_DIR, MAX_CPU_PERCENT, PDF_BATCH_SIZE, MANAGEMENT_CONTROL_TERMS
+import fitz  # PyMuPDF
+import torch
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer
+
+from config.settings import (MANAGEMENT_CONTROL_TERMS, MAX_CPU_PERCENT,
+                             PDF_BATCH_SIZE, PDF_DIR)
+
 from ..utils.gpu_utils import get_available_gpu_memory
 from ..utils.multiprocessing_utils import get_optimal_process_count
 
@@ -34,12 +37,19 @@ def extract_text_and_check_terms(file_path: str, mc_terms: List[str]) -> Tuple[s
                 text += page.get_text()
         
         # Check for management control terms
-        found_terms = [term for term in mc_terms if re.search(r'\b' + re.escape(term.lower()) + r'\b', text.lower())]
-        
-        return text, found_terms
+            term_frequencies = {}
+            for term in mc_terms:
+                pattern = r'\b' + re.escape(term.lower()) + r'\b'
+                matches = len(re.findall(pattern, text.lower()))
+                if matches > 0:
+                    term_frequencies[term] = matches
+            
+            found_terms = list(term_frequencies.keys())
+            
+            return text, found_terms, term_frequencies
     except Exception as e:
         logger.error(f"Error extracting text from {file_path}: {e}")
-        return None, []
+        return None, [], {}
 
 def compute_relevance_score(text: str, terms: List[str]) -> float:
     start_time = time.time()
@@ -64,7 +74,7 @@ def process_pdf(args: Tuple[str, str, List[str]]) -> Dict:
     pdf_path, filename, mc_terms = args
     start_time = time.time()
     
-    extracted_text, found_terms = extract_text_and_check_terms(pdf_path, mc_terms)
+    extracted_text, found_terms, term_frequencies = extract_text_and_check_terms(pdf_path, mc_terms)
     if extracted_text:
         relevance_score = compute_relevance_score(extracted_text, mc_terms)
         processing_time = time.time() - start_time
@@ -76,7 +86,8 @@ def process_pdf(args: Tuple[str, str, List[str]]) -> Dict:
             "full_text": extracted_text,
             "mc_terms_found": found_terms,
             "relevance_score": relevance_score,
-            "processing_time": processing_time
+            "processing_time": processing_time,
+            "mc_terms_freq": term_frequencies
         }
     return None
 
@@ -89,7 +100,8 @@ def process_pdfs_in_batches(output_folder: str, batch_size: int = PDF_BATCH_SIZE
     relevance_scores = {}
     mc_terms_found = {}
     failed_files = []
-    
+    term_frequencies = {}
+
     num_processes = get_optimal_process_count(MAX_CPU_PERCENT)
     logger.info(f"Using {num_processes} processes for PDF processing")
     
@@ -115,6 +127,7 @@ def process_pdfs_in_batches(output_folder: str, batch_size: int = PDF_BATCH_SIZE
                         extracted_texts[result['key']] = result['full_text']
                         relevance_scores[result['key']] = result['relevance_score']
                         mc_terms_found[result['key']] = result['mc_terms_found']
+                        term_frequencies[result['key']] = result['mc_terms_freq']
                     else:
                         failed_files.append(pdf_files[futures.index(future)][1])
                     pbar.update(1)

@@ -20,7 +20,9 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
     
     for doc in documents.values():
         try:
-            year = int(doc.get('year', 0))
+            metadata = doc.get('metadata', {})
+            year = int(metadata.get('year', 0))
+            print(year)
             if start_year <= year <= end_year:
                 # Get the cleaned text, defaulting to regular content if cleaned isn't available
                 text = doc.get('content', doc.get('content', ''))
@@ -33,6 +35,7 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
         logger.warning(f"No documents found for decade {start_year}-{end_year}")
         return ""
     
+    logger.info(f"Found {len(combined_text)} documents for decade {start_year}-{end_year}")
     return " ".join(combined_text)
 
 def create_wordcloud(text: str, mc_terms: List[str]) -> WordCloud:

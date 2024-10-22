@@ -10,6 +10,7 @@ import networkx as nx
 import nltk
 import numpy as np
 import torch
+from nltk.corpus import stopwords
 
 from config import settings
 from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
@@ -23,6 +24,12 @@ from src.trend_analysis import trend_analyzer
 from src.viz.wordcloud_generator import run_wordcloud_analysis
 
 logger = logging.getLogger(__name__)
+
+def get_stop_words() -> set:
+    """Get combined set of standard and custom stopwords."""
+    stop_words = set(stopwords.words('english'))
+    stop_words.update(CUSTOM_STOP_WORDS)
+    return stop_words
 
 def setup_run_folder():
     timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
@@ -187,7 +194,7 @@ def main():
     logger.info(f"Failed to process {len(failed_files)} PDFs")
     
     # Clean extracted texts
-    cleaner_instance = cleaner.TextCleaner(custom_stopwords=CUSTOM_STOP_WORDS)
+    cleaner_instance = cleaner.TextCleaner(custom_stopwords= get_stop_words())
     cleaned_texts = cleaner_instance.process_documents(extracted_texts)
     cleaned_texts_file = os.path.join(run_folder, "cleaned_texts.json")
     with open(cleaned_texts_file, 'w', encoding='utf-8') as f:
