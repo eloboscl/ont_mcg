@@ -6,6 +6,7 @@ import multiprocessing
 import os
 from collections import Counter
 
+import networkx as nx
 import nltk
 import numpy as np
 import torch
@@ -275,7 +276,12 @@ def main():
 
 
     # Log summary statistics
-    log_summary_statistics(analyzed_documents, lda_model, trend_results=trend_results)
+    log_summary_statistics(
+        analyzed_documents=analyzed_documents,
+        lda_model=lda_model if lda_model is not None else None,
+        trend_results=trend_results if 'trend_results' in locals() else None,
+        author_network=author_network if 'author_network' in locals() else None
+    )
 
     logger.info("Run completed")
 
