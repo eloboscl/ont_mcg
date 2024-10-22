@@ -18,6 +18,7 @@ from src.nlp_analysis import advanced_nlp
 from src.text_processing import cleaner
 from src.topic_modeling import topic_modeler
 from src.trend_analysis import trend_analyzer
+from src.viz.wordcloud_generator import run_wordcloud_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +227,14 @@ def main():
     with open(trend_file, 'w', encoding='utf-8') as f:
         json.dump(trend_results, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
     logger.info(f"Trend analysis completed. Results saved to: {trend_file}")
+
+    # Viz ######################################################################
+    try:
+        logger.info("Generating wordclouds...")
+        run_wordcloud_analysis(analyzed_documents, MANAGEMENT_CONTROL_TERMS, run_folder)
+    except Exception as e:
+        logger.error(f"Error generating wordclouds: {str(e)}")
+
 
     # Log summary statistics
     log_summary_statistics(analyzed_documents, lda_model, trend_results)

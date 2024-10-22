@@ -22,7 +22,8 @@ def analyze_trends(documents: Dict[str, Dict[str, Any]], mc_terms: List[str]) ->
     
     # Convert documents to DataFrame for easier manipulation
     df = pd.DataFrame.from_dict(documents, orient='index')
-    df['year'] = pd.to_numeric(df['year'], errors='coerce')
+    print(df.head())
+    df['year'] = pd.to_numeric(df['metadata'].apply(lambda x: x['year']), errors='coerce')
     df = df.dropna(subset=['year'])
     
     # Analyze term frequency over time
@@ -48,7 +49,7 @@ def analyze_term_frequency(df: pd.DataFrame, mc_terms: List[str]) -> Dict[str, L
     """Analyze the frequency of management control terms over time."""
     term_trends = {}
     for term in mc_terms:
-        yearly_counts = df.groupby('year').apply(lambda x: sum(term.lower() in doc.lower() for doc in x['cleaned_text']))
+        yearly_counts = df.groupby('year').apply(lambda x: sum(term.lower() in doc.lower() for doc in x['content']))
         yearly_counts = yearly_counts.reset_index()
         yearly_counts.columns = ['year', 'count']
         yearly_counts['relative_frequency'] = yearly_counts['count'] / df.groupby('year').size()
@@ -59,17 +60,20 @@ def analyze_co_occurrence(df: pd.DataFrame, mc_terms: List[str]) -> Dict[str, Di
     """Analyze co-occurrence of management control terms."""
     co_occurrence = {term: Counter() for term in mc_terms}
     for _, doc in df.iterrows():
-        present_terms = [term for term in mc_terms if term.lower() in doc['cleaned_text'].lower()]
+        present_terms = [term for term in mc_terms if term.lower() in doc['content'].lower()]
         for term in present_terms:
             co_occurrence[term].update(present_terms)
     return {term: dict(counter) for term, counter in co_occurrence.items()}
 
 def analyze_sentiment_trends(df: pd.DataFrame, mc_terms: List[str]) -> Dict[str, List[Dict[str, Any]]]:
     """Analyze sentiment trends for management control terms."""
+
+    df['sentiment'] = df['nlp_analysis'].apply(lambda x: x['sentiment'])
+
     sentiment_trends = {}
     for term in mc_terms:
-        term_docs = df[df['cleaned_text'].str.contains(term, case=False)]
-        yearly_sentiment = term_docs.groupby('year')['nlp_analysis.sentiment'].mean()
+        term_docs = df[df['content'].str.contains(term, case=False)]
+        yearly_sentiment = term_docs.groupby('year')['sentiment'].mean()
         yearly_sentiment = yearly_sentiment.reset_index()
         yearly_sentiment.columns = ['year', 'average_sentiment']
         sentiment_trends[term] = yearly_sentiment.to_dict('records')
