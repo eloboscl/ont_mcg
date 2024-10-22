@@ -188,18 +188,29 @@ def main():
 
     # Perform topic modeling
     logger.info("Starting topic modeling...")
-    lda_model, coherence = topic_modeler.perform_topic_modeling(
-        [doc['cleaned_text'] for doc in analyzed_documents.values()],
-        num_topics=10,
-        workers=multiprocessing.cpu_count() - 1
-    )
-    topic_file = os.path.join(run_folder, "topic_model_results.json")
-    with open(topic_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            "topics": lda_model.print_topics(),
-            "coherence": coherence
-        }, f, ensure_ascii=False, indent=4)
-    logger.info(f"Topic modeling completed. Results saved to: {topic_file}")
+    try:
+        lda_model, coherence = topic_modeler.perform_topic_modeling(
+            analyzed_documents,
+            num_topics=10,
+            workers=multiprocessing.cpu_count() - 1
+        )
+        
+        if lda_model is not None:
+            topics = topic_modeler.print_topics(lda_model)
+            # Save topics to file
+            topics_file = os.path.join(run_folder, "topic_model_results.json")
+            with open(topics_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'topics': topics,
+                    'coherence_score': coherence
+                }, f, ensure_ascii=False, indent=4)
+            logger.info(f"Topic modeling results saved to: {topics_file}")
+        else:
+            logger.warning("Topic modeling failed to produce a model")
+            topics = None
+    except Exception as e:
+        logger.error(f"Error in topic modeling: {str(e)}")
+        lda_model, topics = None, None
 
     # Perform network analysis
     logger.info("Starting network analysis...")

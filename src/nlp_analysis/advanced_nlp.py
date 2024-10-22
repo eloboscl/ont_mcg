@@ -24,7 +24,9 @@ def perform_ner(text: str, device: torch.device) -> List[Tuple[str, str]]:
     Perform Named Entity Recognition on the given text using BERT.
     """
     inputs = ner_tokenizer(text, return_tensors="pt", truncation=True, max_length=512).to(device)
-    outputs = ner_model(**inputs).to(device)
+    ner_model.to(device)  # Ensure the model is on the correct device
+    with torch.no_grad():
+        outputs = ner_model(**inputs)
     predictions = torch.argmax(outputs.logits, dim=2)
     tokens = ner_tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
     entities = []
@@ -36,12 +38,24 @@ def perform_ner(text: str, device: torch.device) -> List[Tuple[str, str]]:
 
 def perform_sentiment_analysis(text: str, device: torch.device) -> float:
     """
-    Perform sentiment analysis on the given text using BERT.
-    Returns a polarity score between 0 (very negative) and 4 (very positive).
+    Perform sentiment analysis using a BERT model.
+    Returns a sentiment score between 1 and 5.
     """
-    inputs = sentiment_tokenizer(text, return_tensors="pt", truncation=True, max_length=512).to(device)
-    outputs = sentiment_model(**inputs).to(device)
-    return torch.argmax(outputs.logits).item()
+    # Move model to specified device
+    sentiment_model.to(device)
+    inputs = sentiment_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    
+    # Get prediction
+    with torch.no_grad():
+        outputs = sentiment_model(**inputs)
+        scores = torch.softmax(outputs.logits, dim=1)
+        prediction = torch.argmax(scores, dim=1).item() + 1  # Add 1 because model outputs 0-4
+        
+    # Normalize to [-1, 1] range
+    normalized_score = (prediction - 3) / 2  # Convert 1-5 to [-1, 1]
+    
+    return normalized_score
 
 def extract_key_phrases(text: str, top_n: int = 10) -> List[str]:
     doc = nlp(text)
