@@ -18,9 +18,11 @@ from config.settings import (CUSTOM_STOP_WORDS, MANAGEMENT_CONTROL_TERMS,
 from src.data_ingestion import metadata_integrator, pdf_processor
 from src.network_analysis import network_analyzer
 from src.nlp_analysis import advanced_nlp
+from src.nlp_analysis.advanced_nlp import process_documents
 from src.text_processing import cleaner
 from src.topic_modeling import topic_modeler
 from src.trend_analysis import trend_analyzer
+from src.viz.sankey_generator import create_sankey_diagrams
 from src.viz.wordcloud_generator import run_wordcloud_analysis
 
 logger = logging.getLogger(__name__)
@@ -216,7 +218,7 @@ def main():
 
      # Perform advanced NLP analysis
     logger.info("Starting advanced NLP analysis...")
-    analyzed_documents = advanced_nlp.process_documents(integrated_documents, device=device)
+    analyzed_documents = process_documents(integrated_documents, device='cuda')# advanced_nlp.process_documents(integrated_documents, device=device)
     analyzed_file = os.path.join(run_folder, "analyzed_documents.json")
     with open(analyzed_file, 'w', encoding='utf-8') as f:
         json.dump(analyzed_documents, f, ensure_ascii=False, indent=4, cls=NumpyEncoder)
@@ -280,7 +282,7 @@ def main():
         run_wordcloud_analysis(analyzed_documents, MANAGEMENT_CONTROL_TERMS, run_folder)
     except Exception as e:
         logger.error(f"Error generating wordclouds: {str(e)}")
-
+ 
 
     # Log summary statistics
     log_summary_statistics(

@@ -1,18 +1,179 @@
+import gc
 import logging
 import os
 import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import spacy
 import torch
 from textblob import TextBlob
 from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 from transformers import (AutoModelForSequenceClassification,
-                          AutoModelForTokenClassification, AutoTokenizer)
+                          AutoModelForTokenClassification, AutoTokenizer,
+                          pipeline)
 
 logger = logging.getLogger(__name__)
+
+class NLPProcessor:
+    def __init__(self, device: str = None):
+        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.batch_size = 8 if self.device == 'cuda' else 4
+        self._initialize_models()
+
+    def _initialize_models(self):
+        """Initialize models with memory optimization."""
+        try:
+            # Use smaller models for better memory efficiency
+            self.ner_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-cased")
+            self.ner_model = AutoModelForTokenClassification.from_pretrained(
+                "distilbert-base-cased",
+                num_labels=9
+            ).to(self.device)
+
+            # Use a lighter sentiment model
+            self.sentiment_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+            self.sentiment_model = AutoModelForSequenceClassification.from_pretrained(
+                "distilbert-base-uncased",
+                num_labels=2
+            ).to(self.device)
+
+            logger.info(f"Models initialized successfully on {self.device}")
+        except Exception as e:
+            logger.error(f"Error initializing models: {str(e)}")
+            raise
+
+    def _batch_texts(self, texts: List[str], batch_size: int) -> List[List[str]]:
+        """Split texts into batches."""
+        return [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+
+    def process_batch(self, batch: List[str], model_type: str = 'ner') -> List[Dict[str, Any]]:
+        """Process a batch of texts."""
+        try:
+            if model_type == 'ner':
+                tokenizer = self.ner_tokenizer
+                model = self.ner_model
+            else:  # sentiment
+                tokenizer = self.sentiment_tokenizer
+                model = self.sentiment_model
+
+            # Tokenize with padding and truncation
+            inputs = tokenizer(
+                batch,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt"
+            ).to(self.device)
+
+            # Process batch
+            with torch.no_grad():
+                outputs = model(**inputs)
+
+            # Clear CUDA cache if using GPU
+            if self.device == 'cuda':
+                torch.cuda.empty_cache()
+
+            return outputs
+
+        except Exception as e:
+            logger.error(f"Error processing batch: {str(e)}")
+            return []
+
+    def analyze_documents(self, documents: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """Analyze documents with batching and memory optimization."""
+        results = []
+        
+        try:
+            # Process in batches
+            batches = self._batch_texts([doc['content'] for doc in documents], self.batch_size)
+            
+            for batch_idx, batch in enumerate(tqdm(batches, desc="Processing documents")):
+                batch_results = []
+                
+                # NER Analysis
+                ner_outputs = self.process_batch(batch, 'ner')
+                
+                # Sentiment Analysis
+                sentiment_outputs = self.process_batch(batch, 'sentiment')
+                
+                # Process results for each document in batch
+                for doc_idx, (ner_output, sentiment_output) in enumerate(zip(
+                    ner_outputs.logits, sentiment_outputs.logits
+                )):
+                    doc_result = {
+                        'id': documents[batch_idx * self.batch_size + doc_idx].get('id', ''),
+                        'ner_entities': self._extract_entities(batch[doc_idx], ner_output),
+                        'sentiment_score': float(torch.softmax(sentiment_output, dim=0)[1].item())
+                    }
+                    batch_results.append(doc_result)
+                
+                results.extend(batch_results)
+                
+                # Memory cleanup
+                if batch_idx % 10 == 0:
+                    gc.collect()
+                    if self.device == 'cuda':
+                        torch.cuda.empty_cache()
+        
+        except Exception as e:
+            logger.error(f"Error in document analysis: {str(e)}")
+        
+        finally:
+            # Final cleanup
+            gc.collect()
+            if self.device == 'cuda':
+                torch.cuda.empty_cache()
+        
+        return results
+
+    def _extract_entities(self, text: str, ner_output: torch.Tensor) -> List[Dict[str, str]]:
+        """Extract named entities from model output."""
+        entities = []
+        predictions = torch.argmax(ner_output, dim=-1)
+        
+        tokens = self.ner_tokenizer.tokenize(text)
+        current_entity = []
+        current_label = None
+        
+        for token, pred in zip(tokens, predictions):
+            label = self.ner_model.config.id2label[pred.item()]
+            
+            if label.startswith('B-'):
+                if current_entity:
+                    entities.append({
+                        'text': ' '.join(current_entity),
+                        'label': current_label
+                    })
+                current_entity = [token]
+                current_label = label[2:]
+            elif label.startswith('I-') and current_entity:
+                current_entity.append(token)
+            else:
+                if current_entity:
+                    entities.append({
+                        'text': ' '.join(current_entity),
+                        'label': current_label
+                    })
+                current_entity = []
+                current_label = None
+        
+        if current_entity:
+            entities.append({
+                'text': ' '.join(current_entity),
+                'label': current_label
+            })
+        
+        return entities
+
+def process_documents(documents: List[Dict[str, str]], device: str = None) -> List[Dict[str, Any]]:
+    """Process documents with optimized memory usage."""
+    processor = NLPProcessor(device)
+    return processor.analyze_documents(documents)
+
 
 def setup_logging(output_dir: str = None) -> logging.Logger:
     """

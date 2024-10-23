@@ -7,7 +7,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Input and output directories
 INPUT_DIR = os.path.join(ROOT_DIR, 'input')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
-PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP/'
+PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/papers/'
 METADATA_FILE = os.path.join(INPUT_DIR, '20240717_metadata_corpus.xlsx')
 
 # Resource usage settings
@@ -16,7 +16,7 @@ MAX_MEMORY_PERCENT = 75  # Maximum memory usage percentage
 MAX_GPU_PERCENT = 90  # Maximum GPU usage percentage
 
 # PDF processing settings
-PDF_BATCH_SIZE = 32  # Number of PDFs to process in a batch
+PDF_BATCH_SIZE = 16  # Number of PDFs to process in a batch
 
 # NLP settings
 MAX_SEQUENCE_LENGTH = 512  # Maximum sequence length for NLP models
@@ -30,8 +30,8 @@ TOPIC_COHERENCE_MEASURE = 'c_v'  # Coherence measure for topic modeling
 MIN_EDGE_WEIGHT = 2  # Minimum edge weight for network visualization
 
 # Visualization settings
-PLOT_WIDTH = 1200  # Width of plots in pixels
-PLOT_HEIGHT = 800  # Height of plots in pixels
+PLOT_WIDTH = 1600  # Width of plots in pixels
+PLOT_HEIGHT = 1200  # Height of plots in pixels
 
 CUSTOM_STOP_WORDS = {
     # Sneaky words
