@@ -7,11 +7,49 @@ from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from PIL import Image
 from wordcloud import WordCloud
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) 
+
+def save_word_frequencies(word_frequencies: Dict[str, int], decade_name: str, output_dir: str):
+    """Save word frequencies to CSV file with rank information."""
+    if not word_frequencies:
+        logger.warning(f"No word frequencies to save for {decade_name}")
+        return
+    
+    # Convert to DataFrame and sort by frequency
+    df = pd.DataFrame([
+        {"concept": word, "frequency": freq}
+        for word, freq in word_frequencies.items()
+    ])
+    df = df.sort_values("frequency", ascending=False)
+    df.insert(0, "rank", range(1, len(df) + 1))  # Add rank column
+    
+    # Save to CSV
+    csv_path = os.path.join(output_dir, f'wordcloud_freq_{decade_name}.csv')
+    df.to_csv(csv_path, index=False)
+    logger.info(f"Saved frequency data for {decade_name}: {csv_path}")
+    
+    return df
+
+def create_composite_frequency_data(all_decades_data: Dict[str, pd.DataFrame], output_dir: str):
+    """Create and save composite frequency data from all decades."""
+    # Combine all decades' data
+    composite_data = []
+    for decade, df in all_decades_data.items():
+        df_copy = df.copy()
+        df_copy['decade'] = decade
+        composite_data.append(df_copy)
+    
+    composite_df = pd.concat(composite_data, ignore_index=True)
+    
+    # Save composite data
+    csv_path = os.path.join(output_dir, 'wordcloud_freq_composite.csv')
+    composite_df.to_csv(csv_path, index=False)
+    logger.info(f"Saved composite frequency data: {csv_path}")
 
 def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str:
     """Prepare text for wordcloud by extracting cleaned text from the correct decade."""
@@ -20,9 +58,10 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
     
     for doc in documents.values():
         try:
-            year = int(doc.get('year', 0))
+            metadata = doc.get('metadata', {})
+            year = int(metadata.get('year', 0))
+            #print(year)
             if start_year <= year <= end_year:
-                # Get the cleaned text, defaulting to regular content if cleaned isn't available
                 text = doc.get('content', doc.get('content', ''))
                 if text:
                     combined_text.append(text)
@@ -33,30 +72,61 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
         logger.warning(f"No documents found for decade {start_year}-{end_year}")
         return ""
     
+    logger.info(f"Found {len(combined_text)} documents for decade {start_year}-{end_year}")
     return " ".join(combined_text)
 
-def create_wordcloud(text: str, mc_terms: List[str]) -> WordCloud:
-    """Create wordcloud with emphasis on management control terms."""
+def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3, max_words: int = 50) -> tuple[WordCloud, Dict[str, int]]:
+    """
+    Create wordcloud with emphasis on management control terms, showing only top N items.
+    
+    Args:
+        text: Input text to generate wordcloud from
+        mc_terms: List of management control terms to emphasize
+        min_freq: Minimum frequency threshold for words
+        max_words: Maximum number of words to show in wordcloud (default: 50)
+    
+    Returns:
+        tuple: (WordCloud object, dictionary of word frequencies)
+    """
     if not text.strip():
         logger.warning("Empty text provided for wordcloud")
-        return None
+        return None, {}
     
     # Split text into words and count frequencies
     words = text.lower().split()
     word_frequencies = Counter(words)
+
+    # Filter out low-frequency words
+    word_frequencies = {k: v for k, v in word_frequencies.items() if v >= min_freq}
     
-    # Increase weight for management control terms
-    for term in mc_terms:
-        term_lower = term.lower()
-        if term_lower in word_frequencies:
-            word_frequencies[term_lower] *= 2
+    # Sort by frequency and take top N words
+    sorted_frequencies = sorted(word_frequencies.items(), key=lambda x: x[1], reverse=True)
     
-    # Remove entries with zero frequency
-    word_frequencies = {k: v for k, v in word_frequencies.items() if v > 0}
+    # Ensure management control terms are included in top words
+    mc_terms_lower = {term.lower() for term in mc_terms}
+    top_words = []
+    mc_terms_included = set()
+    other_words = []
     
-    if not word_frequencies:
+    # Separate MC terms and other words
+    for word, freq in sorted_frequencies:
+        if word in mc_terms_lower:
+            top_words.append((word, freq))
+            mc_terms_included.add(word)
+        else:
+            other_words.append((word, freq))
+    
+    # Fill remaining slots with other high-frequency words
+    remaining_slots = max_words - len(top_words)
+    if remaining_slots > 0:
+        top_words.extend(other_words[:remaining_slots])
+    
+    # Convert back to dictionary
+    final_frequencies = dict(top_words)
+    
+    if not final_frequencies:
         logger.warning("No valid words found for wordcloud after processing")
-        return None
+        return None, {}
 
     # Create color scheme
     colors = ['#1d3d71', '#2958a4', '#3771c8', '#5d9cff', '#87bbff']
@@ -72,13 +142,14 @@ def create_wordcloud(text: str, mc_terms: List[str]) -> WordCloud:
             min_font_size=10,
             max_font_size=150,
             prefer_horizontal=0.7,
-            relative_scaling=0.5
-        ).generate_from_frequencies(word_frequencies)
+            relative_scaling=0.5,
+            max_words=max_words
+        ).generate_from_frequencies(final_frequencies)
         
-        return wordcloud
+        return wordcloud, final_frequencies
     except Exception as e:
         logger.error(f"Error creating wordcloud: {e}")
-        return None
+        return None, {}
 
 def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_dir: str):
     """Generate wordclouds for each decade."""
@@ -93,11 +164,12 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
         (1990, 1999, '1990s'),
         (2000, 2009, '2000s'),
         (2010, 2019, '2010s'),
-        (2020, 2029, '2020s')
+        (2020, 2024, '2020s')
     ]
     
     wordcloud_images = []
-    
+    all_decades_data = {}
+
     for start_year, end_year, decade_name in decades:
         logger.info(f"Processing decade: {decade_name}")
         
@@ -105,7 +177,7 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
         decade_text = prepare_text_for_wordcloud(documents, (start_year, end_year))
         
         if decade_text:
-            wordcloud = create_wordcloud(decade_text, mc_terms)
+            wordcloud, frequencies = create_wordcloud(decade_text, mc_terms, 10)
             
             if wordcloud:
                 # Save individual wordcloud
@@ -121,6 +193,10 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
                 plt.savefig(filepath, dpi=300, bbox_inches='tight')
                 plt.close()
                 
+                # Save frequency data and store for composite
+                decade_df = save_word_frequencies(frequencies, decade_name, wordcloud_dir)
+                all_decades_data[decade_name] = decade_df
+
                 # Store the image for the composite
                 wordcloud_images.append(Image.open(filepath))
                 logger.info(f"Created wordcloud for {decade_name}")
@@ -131,6 +207,7 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
     
     if wordcloud_images:
         create_composite_image(wordcloud_images, wordcloud_dir)
+        create_composite_frequency_data(all_decades_data, wordcloud_dir)
     else:
         logger.warning("No wordcloud images generated to create composite")
 

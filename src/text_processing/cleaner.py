@@ -1,14 +1,24 @@
+import logging
 import re
+
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-import logging
+
+from config.settings import CUSTOM_STOP_WORDS
 
 # Download necessary NLTK data
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
 logger = logging.getLogger(__name__)
+
+def get_stop_words() -> set:
+    """Get combined set of standard and custom stopwords."""
+    stop_words = set(stopwords.words('english'))
+    stop_words.update(CUSTOM_STOP_WORDS)
+    return stop_words
+
 
 class TextCleaner:
     def __init__(self, custom_stopwords=None):
@@ -18,7 +28,7 @@ class TextCleaner:
         self.stop_words = set(stopwords.words('english'))
         if custom_stopwords:
             self.stop_words.update(custom_stopwords)
-
+        
 
     def clean_text(self, text):
         """
