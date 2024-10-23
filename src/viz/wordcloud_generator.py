@@ -60,7 +60,7 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
         try:
             metadata = doc.get('metadata', {})
             year = int(metadata.get('year', 0))
-            print(year)
+            #print(year)
             if start_year <= year <= end_year:
                 text = doc.get('content', doc.get('content', ''))
                 if text:
@@ -75,8 +75,19 @@ def prepare_text_for_wordcloud(documents: Dict[str, Dict], decade: tuple) -> str
     logger.info(f"Found {len(combined_text)} documents for decade {start_year}-{end_year}")
     return " ".join(combined_text)
 
-def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> tuple[WordCloud, Dict[str, int]]:
-    """Create wordcloud with emphasis on management control terms."""
+def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3, max_words: int = 50) -> tuple[WordCloud, Dict[str, int]]:
+    """
+    Create wordcloud with emphasis on management control terms, showing only top N items.
+    
+    Args:
+        text: Input text to generate wordcloud from
+        mc_terms: List of management control terms to emphasize
+        min_freq: Minimum frequency threshold for words
+        max_words: Maximum number of words to show in wordcloud (default: 50)
+    
+    Returns:
+        tuple: (WordCloud object, dictionary of word frequencies)
+    """
     if not text.strip():
         logger.warning("Empty text provided for wordcloud")
         return None, {}
@@ -87,19 +98,35 @@ def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> tuple
 
     # Filter out low-frequency words
     word_frequencies = {k: v for k, v in word_frequencies.items() if v >= min_freq}
-
-    # Increase weight for management control terms
-    for term in mc_terms:
-        term_lower = term.lower()
-        if term_lower in word_frequencies:
-            word_frequencies[term_lower] *= 2
     
-    # Remove entries with zero frequency
-    word_frequencies = {k: v for k, v in word_frequencies.items() if v > 0}
+    # Sort by frequency and take top N words
+    sorted_frequencies = sorted(word_frequencies.items(), key=lambda x: x[1], reverse=True)
     
-    if not word_frequencies:
+    # Ensure management control terms are included in top words
+    mc_terms_lower = {term.lower() for term in mc_terms}
+    top_words = []
+    mc_terms_included = set()
+    other_words = []
+    
+    # Separate MC terms and other words
+    for word, freq in sorted_frequencies:
+        if word in mc_terms_lower:
+            top_words.append((word, freq))
+            mc_terms_included.add(word)
+        else:
+            other_words.append((word, freq))
+    
+    # Fill remaining slots with other high-frequency words
+    remaining_slots = max_words - len(top_words)
+    if remaining_slots > 0:
+        top_words.extend(other_words[:remaining_slots])
+    
+    # Convert back to dictionary
+    final_frequencies = dict(top_words)
+    
+    if not final_frequencies:
         logger.warning("No valid words found for wordcloud after processing")
-        return None
+        return None, {}
 
     # Create color scheme
     colors = ['#1d3d71', '#2958a4', '#3771c8', '#5d9cff', '#87bbff']
@@ -115,10 +142,11 @@ def create_wordcloud(text: str, mc_terms: List[str], min_freq: int = 3) -> tuple
             min_font_size=10,
             max_font_size=150,
             prefer_horizontal=0.7,
-            relative_scaling=0.5
-        ).generate_from_frequencies(word_frequencies)
+            relative_scaling=0.5,
+            max_words=max_words
+        ).generate_from_frequencies(final_frequencies)
         
-        return wordcloud, word_frequencies
+        return wordcloud, final_frequencies
     except Exception as e:
         logger.error(f"Error creating wordcloud: {e}")
         return None, {}
@@ -149,7 +177,7 @@ def generate_wordclouds(documents: Dict[str, Dict], mc_terms: List[str], output_
         decade_text = prepare_text_for_wordcloud(documents, (start_year, end_year))
         
         if decade_text:
-            wordcloud, frequencies = create_wordcloud(decade_text, mc_terms)
+            wordcloud, frequencies = create_wordcloud(decade_text, mc_terms, 10)
             
             if wordcloud:
                 # Save individual wordcloud
