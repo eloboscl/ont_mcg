@@ -11,12 +11,12 @@ PDF_DIR = 'G:/Mi unidad/prrrrrrrimo/PP/'
 METADATA_FILE = os.path.join(INPUT_DIR, '20240717_metadata_corpus.xlsx')
 
 # Resource usage settings
-MAX_CPU_PERCENT = 80  # Maximum CPU usage percentage
+MAX_CPU_PERCENT = 75  # Maximum CPU usage percentage
 MAX_MEMORY_PERCENT = 75  # Maximum memory usage percentage
 MAX_GPU_PERCENT = 90  # Maximum GPU usage percentage
 
 # PDF processing settings
-PDF_BATCH_SIZE = 100  # Number of PDFs to process in a batch
+PDF_BATCH_SIZE = 32  # Number of PDFs to process in a batch
 
 # NLP settings
 MAX_SEQUENCE_LENGTH = 512  # Maximum sequence length for NLP models

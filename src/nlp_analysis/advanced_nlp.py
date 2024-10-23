@@ -1,4 +1,8 @@
 import logging
+import os
+import sys
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from typing import Dict, List, Tuple
 
 import spacy
@@ -9,6 +13,70 @@ from transformers import (AutoModelForSequenceClassification,
                           AutoModelForTokenClassification, AutoTokenizer)
 
 logger = logging.getLogger(__name__)
+
+def setup_logging(output_dir: str = None) -> logging.Logger:
+    """
+    Configure logging with proper Unicode handling for both console and file output.
+    
+    Args:
+        output_dir: Optional directory for log files. If None, uses current directory.
+    """
+    # Create logger
+    logger = logging.getLogger('ont_mcg')
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Create formatters
+    detailed_formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Console handler with UTF-8 encoding
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(detailed_formatter)
+    console_handler.setLevel(logging.INFO)
+    logger.addHandler(console_handler)
+    
+    # File handler (if output_dir is provided)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_file = os.path.join(output_dir, f'ont_mcg_{timestamp}.log')
+        
+        try:
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setFormatter(detailed_formatter)
+            file_handler.setLevel(logging.INFO)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            logger.error(f"Failed to create log file: {str(e)}")
+    
+    return logger
+
+def safe_unicode_logger(logger: logging.Logger, level: int, message: str):
+    """
+    Safely log Unicode messages with fallback to ASCII if needed.
+    
+    Args:
+        logger: Logger instance
+        level: Logging level (e.g., logging.INFO)
+        message: Message to log
+    """
+    try:
+        logger.log(level, message)
+    except UnicodeEncodeError:
+        # Fallback to ASCII representation if Unicode fails
+        ascii_message = message.encode('ascii', 'replace').decode('ascii')
+        logger.log(level, ascii_message)
 
 # Load SpaCy model
 nlp = spacy.load("en_core_web_lg")
